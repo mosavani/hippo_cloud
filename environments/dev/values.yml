@@ -15,7 +15,6 @@ state:
 
 cluster:
   name: hippo-dev-cluster
-  kubernetes_version: "latest"
   release_channel: REGULAR
   deletion_protection: false           # Allow destroy in dev
   enable_private_nodes: true

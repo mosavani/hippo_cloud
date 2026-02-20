@@ -71,8 +71,7 @@ module "gke" {
     }
   ]
 
-  kubernetes_version = local.config.cluster.kubernetes_version
-  release_channel    = local.config.cluster.release_channel
+  release_channel = local.config.cluster.release_channel
 
   # Node pools: loaded from YAML and passed through yamlencode → yamldecode
   # to guarantee the YAML structure matches the module's variable type.

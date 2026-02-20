@@ -95,12 +95,6 @@ variable "node_pools" {
   description = "Map of node pool names to their configuration"
 }
 
-variable "kubernetes_version" {
-  type        = string
-  description = "Kubernetes master version. Set to 'latest' for the latest available version."
-  default     = "latest"
-}
-
 variable "release_channel" {
   type        = string
   description = "GKE release channel: RAPID, REGULAR, STABLE, or UNSPECIFIED"
