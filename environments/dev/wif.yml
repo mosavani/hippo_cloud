@@ -1,0 +1,16 @@
+# -----------------------------------------------------------------------
+# Workload Identity Federation configuration
+# One entry per workload that needs GCP API access.
+#
+# Fields:
+#   name                - short workload name, used to name the GCP SA
+#   k8s_namespace       - Kubernetes namespace the workload runs in
+#   k8s_service_account - Kubernetes ServiceAccount name
+#   gcp_roles           - GCP IAM roles to grant the workload SA
+# -----------------------------------------------------------------------
+workloads:
+  - name: api
+    k8s_namespace: default
+    k8s_service_account: api
+    gcp_roles:
+      - roles/storage.objectViewer
