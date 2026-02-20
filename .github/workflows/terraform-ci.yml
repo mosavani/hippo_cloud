@@ -77,11 +77,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Lint modules
-        run: tflint --recursive --chdir=modules
-
-      - name: Lint environments
-        run: tflint --recursive --chdir=environments
+      - name: Lint
+        run: tflint --recursive
 
   # -----------------------------------------------------------------------
   # Validate: terraform validate
