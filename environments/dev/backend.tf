@@ -1,5 +1,5 @@
 # Remote state stored in GCS.
-# The bucket and prefix come from config.yaml but cannot use locals here
+# The bucket and prefix come from values.yaml but cannot use locals here
 # (Terraform backend config must be static). Use -backend-config flags or
 # the init wrapper script (scripts/tf-init.sh) to pass these values.
 #
