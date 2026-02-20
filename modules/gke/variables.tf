@@ -84,8 +84,8 @@ variable "node_pools" {
     oauth_scopes = optional(list(string), [
       "https://www.googleapis.com/auth/cloud-platform"
     ])
-    labels      = optional(map(string), {})
-    tags        = optional(list(string), [])
+    labels = optional(map(string), {})
+    tags   = optional(list(string), [])
     node_taints = optional(list(object({
       key    = string
       value  = string
@@ -93,12 +93,6 @@ variable "node_pools" {
     })), [])
   }))
   description = "Map of node pool names to their configuration"
-}
-
-variable "kubernetes_version" {
-  type        = string
-  description = "Kubernetes master version. Set to 'latest' for the latest available version."
-  default     = "latest"
 }
 
 variable "release_channel" {

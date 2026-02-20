@@ -1,13 +1,18 @@
 # -----------------------------------------------------------------------
-# CI: Terraform lint, validate, and plan on every PR
-# Apply runs only on merge to main for the dev environment.
+# CI: Terraform fmt, lint, validate, plan on every PR.
+# Apply runs only on merge to main.
 #
-# Secrets required (set in GitHub repo Settings → Secrets and variables):
+# PR blocking: configure these as required status checks in:
+#   GitHub → Settings → Branches → main → Require status checks:
+#     - Format check
+#     - tflint
+#     - Validate (dev)
+#     - Plan (dev)
+#
+# Secrets required (Settings → Secrets and variables → Actions):
 #   GCP_WORKLOAD_IDENTITY_PROVIDER  — WIF provider resource name
 #   GCP_SERVICE_ACCOUNT             — SA email that CI impersonates
-#   TF_STATE_BUCKET_DEV             — GCS bucket for dev state
-#
-# Secrets are never printed; they flow into the workflow only as env vars.
+#   TF_STATE_BUCKET_DEV             — GCS bucket name for dev state
 # -----------------------------------------------------------------------
 name: Terraform CI
 
@@ -26,17 +31,19 @@ on:
 
 permissions:
   contents: read
-  id-token: write        # Required for Workload Identity Federation
-  pull-requests: write   # Allow posting plan output as PR comment
+  id-token: write        # Workload Identity Federation
+  pull-requests: write   # Post/update PR comments
 
 env:
   TF_VERSION: "1.7.5"
+  TFLINT_VERSION: "0.50.3"
   TF_INPUT: "false"
   TF_CLI_ARGS: "-no-color"
 
 jobs:
   # -----------------------------------------------------------------------
-  # Format check: terraform fmt --check
+  # Format: terraform fmt --check
+  # No credentials needed — purely local check.
   # -----------------------------------------------------------------------
   fmt:
     name: Format check
@@ -52,7 +59,8 @@ jobs:
         run: terraform fmt -recursive -check
 
   # -----------------------------------------------------------------------
-  # Lint: tflint
+  # Lint: tflint with google ruleset
+  # No credentials needed.
   # -----------------------------------------------------------------------
   lint:
     name: tflint
@@ -62,21 +70,19 @@ jobs:
 
       - uses: terraform-linters/setup-tflint@v4
         with:
-          tflint_version: latest
+          tflint_version: v${{ env.TFLINT_VERSION }}
 
       - name: Init tflint plugins
         run: tflint --init
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Run tflint (modules)
-        run: tflint --recursive --chdir=modules
-
-      - name: Run tflint (environments)
-        run: tflint --recursive --chdir=environments
+      - name: Lint
+        run: tflint --recursive
 
   # -----------------------------------------------------------------------
-  # Validate: terraform validate (no cloud credentials needed)
+  # Validate: terraform validate
+  # Uses -backend=false so no GCS credentials needed.
   # -----------------------------------------------------------------------
   validate:
     name: Validate (dev)
@@ -88,7 +94,7 @@ jobs:
         with:
           terraform_version: ${{ env.TF_VERSION }}
 
-      - name: terraform init (local backend for validation)
+      - name: terraform init (local backend)
         working-directory: environments/dev
         run: terraform init -backend=false
 
@@ -97,7 +103,9 @@ jobs:
         run: terraform validate
 
   # -----------------------------------------------------------------------
-  # Plan: run terraform plan and post output as PR comment
+  # Plan: init with real GCS backend + plan, post output to PR.
+  # Runs only on pull_request. Blocked by fmt, lint, validate.
+  # Updates the same PR comment on each push (no comment spam).
   # -----------------------------------------------------------------------
   plan:
     name: Plan (dev)
@@ -112,11 +120,16 @@ jobs:
           terraform_version: ${{ env.TF_VERSION }}
           terraform_wrapper: true
 
-      # Authenticate to GCP using Workload Identity Federation.
-      # No long-lived credentials stored — OIDC token exchanged for a
-      # short-lived GCP access token.
-      - id: auth
-        name: Authenticate to GCP
+      # Install yq to read state prefix from values.yml
+      - name: Install yq
+        run: |
+          sudo wget -qO /usr/local/bin/yq \
+            https://github.com/mikefarah/yq/releases/download/v4.43.1/yq_linux_amd64
+          sudo chmod +x /usr/local/bin/yq
+
+      # Keyless auth — OIDC token exchanged for short-lived GCP access token
+      - name: Authenticate to GCP
+        id: auth
         uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
@@ -132,37 +145,72 @@ jobs:
       - name: terraform plan
         id: plan
         working-directory: environments/dev
+        # exit code: 0 = no changes, 1 = error, 2 = changes present
+        # continue-on-error so we can post the output before failing
         run: terraform plan -detailed-exitcode -out=tfplan
-        # exit code 0 = no changes, 1 = error, 2 = changes present
         continue-on-error: true
 
-      - name: Post plan to PR
+      # Find an existing plan comment on this PR and update it,
+      # or create a new one if none exists. Avoids comment spam.
+      - name: Update PR comment
         uses: actions/github-script@v7
-        if: github.event_name == 'pull_request'
         env:
-          PLAN: ${{ steps.plan.outputs.stdout }}
+          PLAN_OUTPUT: ${{ steps.plan.outputs.stdout }}
+          PLAN_EXIT:   ${{ steps.plan.outputs.exitcode }}
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const output = `#### Terraform Plan — \`dev\`
-            \`\`\`
-            ${process.env.PLAN}
-            \`\`\`
-            *Pushed by: @${{ github.actor }}, Action: \`${{ github.event_name }}\`*`;
+            const status = process.env.PLAN_EXIT === '0' ? '✅ No changes'
+                         : process.env.PLAN_EXIT === '2' ? '⚠️ Changes pending'
+                         : '❌ Error';
 
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
+            const body = [
+              `### Terraform Plan — \`dev\` ${status}`,
+              `> Triggered by @${{ github.actor }} on \`${{ github.event_name }}\` · ${{ github.sha }}`,
+              '',
+              '<details><summary>Show plan</summary>',
+              '',
+              '```hcl',
+              process.env.PLAN_OUTPUT,
+              '```',
+              '</details>',
+            ].join('\n');
+
+            const marker = '### Terraform Plan — `dev`';
+            const { data: comments } = await github.rest.issues.listComments({
               owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: output
+              repo:  context.repo.repo,
+              issue_number: context.issue.number,
             });
 
-      - name: Check plan exit code
+            const existing = comments.find(c =>
+              c.user.type === 'Bot' && c.body.includes(marker)
+            );
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner:      context.repo.owner,
+                repo:       context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner:        context.repo.owner,
+                repo:         context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+            }
+
+      # Fail the job if plan errored (exit code 1)
+      - name: Assert plan succeeded
         if: steps.plan.outputs.exitcode == '1'
         run: exit 1
 
   # -----------------------------------------------------------------------
-  # Apply: dev only, on push to main (after PR merge)
+  # Apply: runs on merge to main only, after all checks pass.
+  # Blocked by fmt, lint, validate (plan only runs on PRs).
   # -----------------------------------------------------------------------
   apply-dev:
     name: Apply (dev)
@@ -180,8 +228,14 @@ jobs:
         with:
           terraform_version: ${{ env.TF_VERSION }}
 
-      - id: auth
-        name: Authenticate to GCP
+      - name: Install yq
+        run: |
+          sudo wget -qO /usr/local/bin/yq \
+            https://github.com/mikefarah/yq/releases/download/v4.43.1/yq_linux_amd64
+          sudo chmod +x /usr/local/bin/yq
+
+      - name: Authenticate to GCP
+        id: auth
         uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}

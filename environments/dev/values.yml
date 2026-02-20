@@ -1,7 +1,7 @@
 # -----------------------------------------------------------------------
 # Dev environment configuration
 # This YAML file is the single source of truth for all dev environment
-# settings. It is loaded via yamldecode() in Terraform locals.
+# settings. 
 # -----------------------------------------------------------------------
 environment: dev
 
@@ -11,21 +11,20 @@ gcp:
 
 state:
   bucket: hippo-cloud-tf-state-dev     # GCS bucket for remote state
-  prefix: gke/dev                      # State file path prefix within bucket
+  prefix: state/dev                    # State file path prefix within bucket
 
 cluster:
   name: hippo-dev-cluster
-  kubernetes_version: "latest"
   release_channel: REGULAR
   deletion_protection: false           # Allow destroy in dev
   enable_private_nodes: true
   enable_private_endpoint: false       # Allow kubectl from workstations
-  master_ipv4_cidr_block: "172.16.0.0/28"
+  master_ipv4_cidr_block: "172.16.0.0/28" # (2^4) - 16 IPs
 
   # Who can reach the control plane
   master_authorized_networks:
     - cidr_block: "0.0.0.0/0"
-      display_name: "allow-all-dev"    # Restrict in prod; open in dev for convenience
+      display_name: "allow-all-dev"
 
   # Node pool definitions
   node_pools:
@@ -47,9 +46,9 @@ cluster:
 networking:
   network_name: hippo-dev-vpc
   subnet_name: hippo-dev-subnet
-  subnet_cidr: "10.10.0.0/22"
-  pods_cidr: "10.20.0.0/18"
-  services_cidr: "10.30.0.0/20"
+  subnet_cidr: "10.10.0.0/22" # 1,024 IPs
+  pods_cidr: "10.20.0.0/18"  # 16,382 IPs
+  services_cidr: "10.30.0.0/20" # 4,096 IPs
 
 tags:
   git-repository: hippo_cloud

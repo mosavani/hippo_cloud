@@ -21,7 +21,6 @@ module "networking" {
 
   project_id    = local.project_id
   region        = local.region
-  environment   = local.environment
   network_name  = local.config.networking.network_name
   subnet_name   = local.config.networking.subnet_name
   subnet_cidr   = local.config.networking.subnet_cidr
@@ -72,8 +71,7 @@ module "gke" {
     }
   ]
 
-  kubernetes_version = local.config.cluster.kubernetes_version
-  release_channel    = local.config.cluster.release_channel
+  release_channel = local.config.cluster.release_channel
 
   # Node pools: loaded from YAML and passed through yamlencode → yamldecode
   # to guarantee the YAML structure matches the module's variable type.
