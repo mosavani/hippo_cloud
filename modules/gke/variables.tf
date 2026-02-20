@@ -84,8 +84,8 @@ variable "node_pools" {
     oauth_scopes = optional(list(string), [
       "https://www.googleapis.com/auth/cloud-platform"
     ])
-    labels      = optional(map(string), {})
-    tags        = optional(list(string), [])
+    labels = optional(map(string), {})
+    tags   = optional(list(string), [])
     node_taints = optional(list(object({
       key    = string
       value  = string

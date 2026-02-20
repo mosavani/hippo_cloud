@@ -1,10 +1,10 @@
 locals {
   common_labels = merge(
     {
-      "tf-module"      = "gke"
-      "tf-workspace"   = terraform.workspace
-      "environment"    = var.environment
-      "managed-by"     = "terraform"
+      "tf-module"    = "gke"
+      "tf-workspace" = terraform.workspace
+      "environment"  = var.environment
+      "managed-by"   = "terraform"
     },
     var.tags
   )
@@ -89,17 +89,12 @@ resource "google_container_cluster" "primary" {
   }
 
   enable_shielded_nodes = var.enable_shielded_nodes
-
-  # Prevent accidental deletion in production
-  deletion_protection = var.deletion_protection
-
-  resource_labels = local.common_labels
+  deletion_protection   = var.deletion_protection
+  resource_labels       = local.common_labels
 
   lifecycle {
-    # Prevent destroy unless explicitly allowed
     prevent_destroy = false
     ignore_changes = [
-      # Ignore changes to node count since autoscaling manages it
       initial_node_count,
     ]
   }
@@ -118,7 +113,6 @@ resource "google_container_node_pool" "pools" {
     max_node_count = each.value.max_node_count
   }
 
-  # Upgrade policy aligned with release channel
   upgrade_settings {
     max_surge       = 1
     max_unavailable = 0
@@ -126,18 +120,16 @@ resource "google_container_node_pool" "pools" {
   }
 
   node_config {
-    machine_type = each.value.machine_type
-    disk_size_gb = each.value.disk_size_gb
-    disk_type    = each.value.disk_type
-    image_type   = each.value.image_type
-    spot         = each.value.spot
-    preemptible  = each.value.preemptible
-
+    machine_type    = each.value.machine_type
+    disk_size_gb    = each.value.disk_size_gb
+    disk_type       = each.value.disk_type
+    image_type      = each.value.image_type
+    spot            = each.value.spot
+    preemptible     = each.value.preemptible
     service_account = each.value.service_account != "" ? each.value.service_account : null
     oauth_scopes    = each.value.oauth_scopes
-
-    labels = merge(local.common_labels, each.value.labels)
-    tags   = each.value.tags
+    labels          = merge(local.common_labels, each.value.labels)
+    tags            = each.value.tags
 
     dynamic "taint" {
       for_each = each.value.node_taints
