@@ -21,7 +21,6 @@ module "networking" {
 
   project_id    = local.project_id
   region        = local.region
-  environment   = local.environment
   network_name  = local.config.networking.network_name
   subnet_name   = local.config.networking.subnet_name
   subnet_cidr   = local.config.networking.subnet_cidr
