@@ -1,0 +1,216 @@
+# CI Setup — GitHub Actions with Workload Identity Federation
+
+The CI pipeline runs on GitHub Actions and authenticates to GCP using **Workload Identity Federation (WIF)** — no long-lived service account keys are stored anywhere.
+
+GitHub org/repo: `mosavani/hippo_cloud`
+GCP project: `project-ec2467ed-84cd-4898-b5b` (number: `68730226170`)
+
+---
+
+## How the pipeline works
+
+```
+PR opened → main
+  ├── fmt check    (fails fast if any file is unformatted)
+  ├── tflint       (Google ruleset, modules + environments)
+  ├── validate     (syntax check, no cloud credentials needed)
+  └── plan         (authenticates via WIF, posts output as PR comment)
+
+Push to main (PR merged)
+  ├── fmt check
+  ├── tflint
+  ├── validate
+  └── apply-dev    (authenticates via WIF, terraform apply -auto-approve)
+```
+
+The pipeline only triggers when files under `environments/**` or `modules/**` change (or the workflow file itself).
+
+---
+
+## One-time GCP setup
+
+### Step 1 — Create a CI service account
+
+```bash
+gcloud iam service-accounts create ci-terraform \
+  --display-name="GitHub Actions Terraform CI" \
+  --project=project-ec2467ed-84cd-4898-b5b
+```
+
+Grant it the permissions Terraform needs:
+
+```bash
+for role in \
+  roles/container.admin \
+  roles/compute.networkAdmin \
+  roles/iam.serviceAccountAdmin \
+  roles/iam.serviceAccountKeyAdmin \
+  roles/resourcemanager.projectIamAdmin \
+  roles/storage.admin; do
+  gcloud projects add-iam-policy-binding project-ec2467ed-84cd-4898-b5b \
+    --member="serviceAccount:ci-terraform@project-ec2467ed-84cd-4898-b5b.iam.gserviceaccount.com" \
+    --role="${role}"
+done
+```
+
+> Scope these roles further once the project stabilizes. `resourcemanager.projectIamAdmin` is needed for IAM bindings in `modules/iam` and `modules/workload-identity`.
+
+---
+
+### Step 2 — Create a Workload Identity pool
+
+```bash
+gcloud iam workload-identity-pools create "github-pool" \
+  --project=project-ec2467ed-84cd-4898-b5b \
+  --location=global \
+  --display-name="GitHub Actions Pool"
+```
+
+---
+
+### Step 3 — Create a GitHub OIDC provider
+
+```bash
+gcloud iam workload-identity-pools providers create-oidc "github-provider" \
+  --project=project-ec2467ed-84cd-4898-b5b \
+  --location=global \
+  --workload-identity-pool="github-pool" \
+  --display-name="GitHub provider" \
+  --issuer-uri="https://token.actions.githubusercontent.com" \
+  --attribute-mapping="google.subject=assertion.sub,attribute.repository=assertion.repository" \
+  --attribute-condition="assertion.repository=='mosavani/hippo_cloud'"
+```
+
+The `--attribute-condition` locks this provider to the `mosavani/hippo_cloud` repo only. No other GitHub repo can use this pool.
+
+---
+
+### Step 4 — Allow the GitHub repo to impersonate the CI SA
+
+```bash
+gcloud iam service-accounts add-iam-policy-binding \
+  "ci-terraform@project-ec2467ed-84cd-4898-b5b.iam.gserviceaccount.com" \
+  --project=project-ec2467ed-84cd-4898-b5b \
+  --role="roles/iam.workloadIdentityUser" \
+  --member="principalSet://iam.googleapis.com/projects/68730226170/locations/global/workloadIdentityPools/github-pool/attribute.repository/mosavani/hippo_cloud"
+```
+
+---
+
+### Step 5 — Grant CI SA access to the state bucket
+
+```bash
+gcloud storage buckets add-iam-policy-binding gs://hippo-cloud-tf-state-dev \
+  --member="serviceAccount:ci-terraform@project-ec2467ed-84cd-4898-b5b.iam.gserviceaccount.com" \
+  --role="roles/storage.objectAdmin"
+```
+
+---
+
+## GitHub repository secrets
+
+Set these in **Settings → Secrets and variables → Actions → New repository secret**:
+
+| Secret name | Value |
+|-------------|-------|
+| `GCP_WORKLOAD_IDENTITY_PROVIDER` | `projects/68730226170/locations/global/workloadIdentityPools/github-pool/providers/github-provider` |
+| `GCP_SERVICE_ACCOUNT` | `ci-terraform@project-ec2467ed-84cd-4898-b5b.iam.gserviceaccount.com` |
+| `TF_STATE_BUCKET_DEV` | `hippo-cloud-tf-state-dev` |
+
+Get the provider resource name from GCP if needed:
+
+```bash
+gcloud iam workload-identity-pools providers describe github-provider \
+  --workload-identity-pool=github-pool \
+  --location=global \
+  --project=project-ec2467ed-84cd-4898-b5b \
+  --format="value(name)"
+```
+
+---
+
+## GitHub Actions environment (optional but recommended)
+
+Create a GitHub environment named `dev` to add required reviewers or deployment protection rules before the apply job runs.
+
+Go to **Settings → Environments → New environment → `dev`**.
+
+The `apply-dev` job in `.github/workflows/terraform-ci.yml` already references `environment: dev`:
+
+```yaml
+apply-dev:
+  environment:
+    name: dev
+    url: https://console.cloud.google.com/kubernetes
+```
+
+---
+
+## Verifying the pipeline
+
+1. Open a pull request against `main` that touches a file under `environments/` or `modules/`.
+2. All four jobs (`fmt`, `lint`, `validate`, `plan`) should appear in the PR checks.
+3. The `plan` job posts a comment to the PR with the Terraform plan output.
+4. Merge the PR. The `apply-dev` job runs automatically.
+
+Check workflow runs at:
+`https://github.com/mosavani/hippo_cloud/actions`
+
+---
+
+## Pipeline permissions
+
+The workflow sets these GitHub token permissions:
+
+```yaml
+permissions:
+  contents: read       # checkout the repo
+  id-token: write      # exchange OIDC token for GCP access token (WIF)
+  pull-requests: write # post plan output as PR comment
+```
+
+These are the minimum permissions required. No other GitHub token scopes are used.
+
+---
+
+## What Workload Identity Federation replaces
+
+Without WIF, you would need to:
+- Create a service account JSON key.
+- Store it as a GitHub secret.
+- Rotate it regularly.
+- Risk exposure if the secret leaks.
+
+With WIF:
+- GitHub's OIDC provider issues a short-lived token per workflow run.
+- GCP exchanges that token for a temporary access token scoped to the CI SA.
+- No key file exists anywhere.
+- Token lifetime is bound to the job run.
+
+---
+
+## Troubleshooting
+
+**`Error: google-github-actions/auth failed: Failed to generate token`**
+
+- Confirm `GCP_WORKLOAD_IDENTITY_PROVIDER` is set to the full resource name (`projects/68730226170/...`).
+- Confirm `GCP_SERVICE_ACCOUNT` email matches what was bound in Step 4.
+- Confirm the `--attribute-condition` in Step 3 matches `mosavani/hippo_cloud` exactly (case-sensitive).
+
+**Plan job fails at `terraform init`**
+
+- Confirm `TF_STATE_BUCKET_DEV` secret is set to `hippo-cloud-tf-state-dev`.
+- Confirm the CI SA has `roles/storage.objectAdmin` on that bucket (Step 5).
+- Confirm the bucket exists (`./scripts/bootstrap-state.sh dev`).
+
+**`fmt` check fails**
+
+Run `make fmt` locally and commit the formatted files before pushing.
+
+**`tflint` fails**
+
+Run `make lint` locally. The Google ruleset is configured in `.tflint.hcl`.
+
+**Apply runs but no changes in GCP**
+
+Check that the PR modified files under `environments/**` or `modules/**`. The `paths` filter in the workflow skips unrelated changes.

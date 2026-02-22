@@ -51,3 +51,4 @@ terraform.rc
 
 # Generated terraform-docs
 modules/**/MODULE.md
+environments/dev/.terraform.lock.hcl

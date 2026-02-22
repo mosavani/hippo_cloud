@@ -8,6 +8,11 @@ variable "region" {
   description = "GCP region for the cluster"
 }
 
+variable "location" {
+  type        = string
+  description = "GKE cluster location. A zone (e.g. us-central1-a) creates a zonal cluster; a region (e.g. us-central1) creates a regional (HA) cluster."
+}
+
 variable "cluster_name" {
   type        = string
   description = "Name of the GKE cluster"
@@ -84,8 +89,8 @@ variable "node_pools" {
     oauth_scopes = optional(list(string), [
       "https://www.googleapis.com/auth/cloud-platform"
     ])
-    labels      = optional(map(string), {})
-    tags        = optional(list(string), [])
+    labels = optional(map(string), {})
+    tags   = optional(list(string), [])
     node_taints = optional(list(object({
       key    = string
       value  = string
@@ -93,12 +98,6 @@ variable "node_pools" {
     })), [])
   }))
   description = "Map of node pool names to their configuration"
-}
-
-variable "kubernetes_version" {
-  type        = string
-  description = "Kubernetes master version. Set to 'latest' for the latest available version."
-  default     = "latest"
 }
 
 variable "release_channel" {
@@ -139,13 +138,13 @@ variable "maintenance_start_time" {
 variable "maintenance_end_time" {
   type        = string
   description = "End time for the maintenance window (RFC3339 format)"
-  default     = "2024-01-01T06:00:00Z"
+  default     = "2024-01-01T08:00:00Z"
 }
 
 variable "maintenance_recurrence" {
   type        = string
   description = "RFC 5545 RRULE for maintenance windows"
-  default     = "FREQ=WEEKLY;BYDAY=SA,SU"
+  default     = "FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR,SA,SU"
 }
 
 variable "logging_service" {

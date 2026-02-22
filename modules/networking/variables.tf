@@ -8,11 +8,6 @@ variable "region" {
   description = "GCP region"
 }
 
-variable "environment" {
-  type        = string
-  description = "Deployment environment (dev, staging, prod)"
-}
-
 variable "network_name" {
   type        = string
   description = "Name of the VPC network"
