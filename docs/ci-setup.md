@@ -173,6 +173,29 @@ These are the minimum permissions required. No other GitHub token scopes are use
 
 ---
 
+## Granting CI access to other repos
+
+Any GitHub repo that needs GCP access (e.g. `hippo_k8s-service` publishing Helm charts to GAR) uses the same WIF pool. Add an entry to `environments/dev/wif.yml` under `github_ci`:
+
+```yaml
+github_ci:
+  - name: hippo-helm-publisher
+    github_repo: mosavani/hippo_k8s-service
+    gcp_roles:
+      - roles/artifactregistry.writer
+```
+
+Then apply:
+
+```bash
+make apply-dev
+terraform -chdir=environments/dev output github_ci_service_accounts
+```
+
+Set `GCP_SERVICE_ACCOUNT` in the target repo to the printed SA email. The `GCP_WORKLOAD_IDENTITY_PROVIDER` value is the same as this repo — no new pool or provider needed.
+
+---
+
 ## What Workload Identity Federation replaces
 
 Without WIF, you would need to:

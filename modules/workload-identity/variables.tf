@@ -33,3 +33,15 @@ variable "gcp_roles" {
   description = "List of IAM roles to grant the workload GCP SA (e.g. 'roles/storage.objectViewer')"
   default     = []
 }
+
+variable "github_repo" {
+  type        = string
+  description = "GitHub repo in 'owner/repo' format. When set, binds this GCP SA to a GitHub Actions workflow instead of a K8s ServiceAccount."
+  default     = ""
+}
+
+variable "workload_identity_pool_id" {
+  type        = string
+  description = "Full WIF pool resource name. Required when github_repo is set. (e.g. 'projects/68730226170/locations/global/workloadIdentityPools/github-pool')"
+  default     = ""
+}

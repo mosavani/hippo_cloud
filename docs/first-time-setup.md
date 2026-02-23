@@ -6,8 +6,6 @@ This guide covers everything needed to go from a fresh clone to a running GKE cl
 
 ## Prerequisites
 
-Install the following tools before proceeding:
-
 | Tool | Minimum version | Install |
 |------|----------------|---------|
 | Terraform | 1.5 | `brew install terraform` |
@@ -27,28 +25,18 @@ yq --version
 
 ---
 
-## GCP project details
-
-| Field | Value |
-|-------|-------|
-| Project ID | `hippo-sre-demo` |
-| Project number | `68730226170` |
-| Default region | `us-central1` |
-
----
-
 ## Step 1 — Authenticate to GCP
 
 ```bash
 gcloud auth login
-gcloud config set project hippo-sre-demo
+gcloud config set project project-ec2467ed-84cd-4898-b5b
 gcloud auth application-default login
 ```
 
 Verify access:
 
 ```bash
-gcloud projects describe hippo-sre-demo
+gcloud projects describe project-ec2467ed-84cd-4898-b5b
 ```
 
 ---
@@ -66,7 +54,7 @@ gcloud services enable \
   storage.googleapis.com \
   artifactregistry.googleapis.com \
   iamcredentials.googleapis.com \
-  --project=hippo-sre-demo
+  --project=project-ec2467ed-84cd-4898-b5b
 ```
 
 ---
@@ -79,27 +67,27 @@ The GCS bucket for remote state must exist before `terraform init` can configure
 ./scripts/bootstrap-state.sh dev
 ```
 
-This script reads `environments/dev/values.yml` and creates the bucket `hippo-cloud-tf-state-dev` in `us-central1` with versioning enabled. Safe to re-run — skips creation if the bucket already exists.
+Reads `environments/dev/values.yml` and creates `hippo-cloud-tf-state-dev` in `us-central1` with versioning enabled. Safe to re-run — skips creation if the bucket already exists.
 
 ---
 
 ## Step 4 — Review `values.yml`
 
-`environments/dev/values.yml` is the single source of truth for all infrastructure settings. Confirm the project ID is set correctly:
+`environments/dev/values.yml` is the single source of truth for all infrastructure settings. Confirm the project ID is correct:
 
 ```yaml
 gcp:
-  project_id: hippo-sre-demo
+  project_id: project-ec2467ed-84cd-4898-b5b
   region: us-central1
 ```
 
-Key settings already configured for dev:
+Key settings configured for dev:
 
 | Setting | Value |
 |---------|-------|
 | Cluster name | `hippo-dev-cluster` |
 | Release channel | `REGULAR` |
-| Node machine type | `e2-standard-4` |
+| Node machine type | `e2-standard-2` |
 | Node autoscaling | 1–3 nodes |
 | Spot instances | enabled (cost saving) |
 | Private nodes | enabled |
@@ -138,11 +126,11 @@ After apply, retrieve the kubeconfig command from outputs:
 terraform -chdir=environments/dev output kubeconfig_command
 ```
 
-Run the printed command, for example:
+Run the printed command:
 
 ```bash
 gcloud container clusters get-credentials hippo-dev-cluster \
-  --region us-central1 \
+  --zone us-central1-a \
   --project project-ec2467ed-84cd-4898-b5b
 ```
 
@@ -156,7 +144,9 @@ kubectl get nodes
 
 ## Step 7 — Review Workload Identity configuration
 
-`environments/dev/wif.yml` defines which Kubernetes workloads get GCP IAM access. The default entry:
+`environments/dev/wif.yml` is the single source of truth for all WIF bindings. It has two sections:
+
+**`workloads`** — in-cluster K8s ServiceAccount → GCP SA bindings:
 
 ```yaml
 workloads:
@@ -167,37 +157,47 @@ workloads:
       - roles/storage.objectViewer
 ```
 
-To add a workload, append an entry to this file and re-run `make apply-dev`. No `.tf` changes needed.
-
-After apply, get the annotation value for each workload's Kubernetes ServiceAccount:
+To add an in-cluster workload, append an entry here and re-run `make apply-dev`. After apply, get the annotation for the K8s ServiceAccount:
 
 ```bash
 terraform -chdir=environments/dev output wi_k8s_annotations
 ```
 
-Apply that annotation to the workload's K8s ServiceAccount manifest as <your-serviceaccount-file>.yaml:
+Apply it to the workload's K8s ServiceAccount:
 
 ```yaml
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: api
+  name: frontend-web
   namespace: default
   annotations:
     iam.gke.io/gcp-service-account: <value from output above>
 ```
 
+```bash
+kubectl apply -f serviceaccount.yaml
+kubectl describe serviceaccount frontend-web -n default
 ```
 
-  kubectl apply -f <your-serviceaccount-file>.yaml
+**`github_ci`** — GitHub Actions repo → GCP SA bindings (no K8s SA involved):
 
-  Verify the annotation is set:
+```yaml
+github_ci:
+  - name: hippo-helm-publisher
+    github_repo: mosavani/hippo_k8s-service
+    gcp_roles:
+      - roles/artifactregistry.writer
+```
 
-  kubectl describe serviceaccount frontend-web -n default
+To add a CI binding for another repo, append an entry here and re-run `make apply-dev`. Get the SA email for the GitHub secret:
 
-  Any pod that uses serviceAccountName: frontend-web in its spec will then automatically get a token that impersonates the GCP SA, giving it roles/storage.objectViewer without any key files.
+```bash
+terraform -chdir=environments/dev output github_ci_service_accounts
+```
 
-````
+No `.tf` changes are needed for either section.
+
 ---
 
 ## Local developer workflow
@@ -218,10 +218,11 @@ make docs         # regenerate MODULE.md for all modules
 | Resource | Name | Notes |
 |----------|------|-------|
 | VPC | `hippo-dev-vpc` | Custom subnets, regional routing |
-| Subnet | `hippo-dev-subnet` | `10.10.0.0/22`, flow logs enabled |
+| Subnet | `hippo-dev-subnet` | `10.10.0.0/22` |
 | Cloud Router | `hippo-dev-vpc-router` | Required for NAT |
-| Cloud NAT | `hippo-dev-vpc-nat` | AUTO_ONLY IPs, error logging |
+| Cloud NAT | `hippo-dev-vpc-nat` | AUTO_ONLY IPs |
 | GKE cluster | `hippo-dev-cluster` | Private nodes, REGULAR release channel |
-| Node pool | `default-pool` | `e2-standard-4`, 1–3 spot nodes |
+| Node pool | `default-pool` | `e2-standard-2`, 1–3 spot nodes |
 | Node SA | `hippo-dev-cluster-nodes` | Least-privilege roles only |
-| Workload SA | `hippo-dev-cluster-api` | Bound to `default/api` K8s SA |
+| Workload SA | `hippo-dev-cluster-frontend-web` | Bound to `default/frontend-web` K8s SA |
+| CI SA | `hippo-dev-cluster-hippo-helm-publisher` | Bound to `mosavani/hippo_k8s-service` GitHub repo via WIF |

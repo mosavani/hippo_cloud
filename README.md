@@ -21,11 +21,11 @@ hippo_cloud/
 │   ├── gke/                # GKE cluster + node pools
 │   ├── networking/         # VPC, subnet, Cloud NAT
 │   ├── iam/                # Least-privilege node service account
-│   └── workload-identity/  # Reusable WIF SA + binding per workload
+│   └── workload-identity/  # Reusable WIF SA + binding (K8s workloads and GitHub Actions)
 ├── environments/
 │   └── dev/
 │       ├── values.yml  ← infrastructure config (project, cluster, networking)
-│       ├── wif.yml     ← workload identity config (one entry per workload)
+│       ├── wif.yml     ← workload identity config (workloads + github_ci sections)
 │       ├── main.tf     ← calls all modules; reads values.yml and wif.yml
 │       ├── backend.tf  ← GCS remote state (bucket injected at init)
 │       ├── versions.tf
@@ -51,8 +51,8 @@ hippo_cloud/
 | **Managed remote state** | GCS backend. Bucket versioning enabled — state is always recoverable. |
 | **Read-only protection** | `deletion_protection = false` in dev. State bucket versioning prevents un-versioned state. |
 | **Modular design** | Each module has `main.tf`, `variables.tf`, `outputs.tf`, `versions.tf`. |
-| **Workload Identity** | `modules/workload-identity` is reusable per workload. Adding a workload = one YAML entry in `wif.yml`, no Terraform changes. |
-| **Secrets — no long-lived keys** | CI uses Workload Identity Federation (OIDC). No SA JSON stored anywhere. |
+| **Workload Identity** | `modules/workload-identity` handles both K8s SA bindings (`workloads`) and GitHub Actions bindings (`github_ci`). Adding either = one YAML entry in `wif.yml`, no Terraform changes. |
+| **Secrets — no long-lived keys** | All CI (this repo and `hippo_k8s-service`) uses Workload Identity Federation (OIDC). No SA JSON stored anywhere. |
 | **Linting** | `terraform fmt` + `tflint` (google ruleset) run on every PR. |
 | **CI gates** | fmt → lint → validate → plan (PR comment) → apply (merge to main). |
 
@@ -106,7 +106,9 @@ make apply-dev
 
 ## Adding a workload
 
-Edit `environments/dev/wif.yml` and add an entry:
+`wif.yml` has two sections — add to whichever applies. No `.tf` changes needed in either case.
+
+**In-cluster workload** (K8s ServiceAccount → GCP SA):
 
 ```yaml
 workloads:
@@ -117,16 +119,13 @@ workloads:
       - roles/pubsub.subscriber
 ```
 
-Then apply. No changes to any `.tf` file needed.
-
-After apply, annotate the Kubernetes ServiceAccount with the value from:
+After `make apply-dev`, annotate the Kubernetes ServiceAccount:
 
 ```bash
 terraform -chdir=environments/dev output wi_k8s_annotations
 ```
 
 ```yaml
-# K8s ServiceAccount (application team's manifest)
 apiVersion: v1
 kind: ServiceAccount
 metadata:
@@ -134,6 +133,22 @@ metadata:
   namespace: jobs
   annotations:
     iam.gke.io/gcp-service-account: <value from output above>
+```
+
+**GitHub Actions CI** (GitHub repo → GCP SA, no K8s SA):
+
+```yaml
+github_ci:
+  - name: my-repo-publisher
+    github_repo: mosavani/my-repo
+    gcp_roles:
+      - roles/artifactregistry.writer
+```
+
+After `make apply-dev`, get the SA email for the GitHub secret:
+
+```bash
+terraform -chdir=environments/dev output github_ci_service_accounts
 ```
 
 ---
@@ -145,8 +160,10 @@ Set in **Settings → Secrets and variables → Actions**:
 | Secret | Description |
 |--------|-------------|
 | `GCP_WORKLOAD_IDENTITY_PROVIDER` | WIF provider resource name |
-| `GCP_SERVICE_ACCOUNT` | SA email CI impersonates |
+| `GCP_SERVICE_ACCOUNT` | SA email for this repo's CI (`ci-terraform@...`) |
 | `TF_STATE_BUCKET_DEV` | GCS bucket name for dev state |
+
+For other repos that need GCP access (e.g. `hippo_k8s-service`), add a `github_ci` entry to `wif.yml`, run `make apply-dev`, then set `GCP_SERVICE_ACCOUNT` in that repo to the value from `terraform -chdir=environments/dev output github_ci_service_accounts`. The `GCP_WORKLOAD_IDENTITY_PROVIDER` value is the same across all repos.
 
 ### Setting up Workload Identity Federation for CI (no SA key needed)
 

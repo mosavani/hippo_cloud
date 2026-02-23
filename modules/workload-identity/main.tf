@@ -1,8 +1,12 @@
 # GCP service account for the workload.
-# Named to make its scope obvious: <cluster>-<workload>
+# account_id must be 6-30 chars; truncate to stay within the limit.
+locals {
+  account_id = substr("${var.cluster_name}-${var.workload_name}", 0, 30)
+}
+
 resource "google_service_account" "workload" {
   project      = var.project_id
-  account_id   = "${var.cluster_name}-${var.workload_name}"
+  account_id   = local.account_id
   display_name = "${var.workload_name} (${var.environment})"
   description  = "Workload Identity SA for ${var.workload_name} running in ${var.k8s_namespace}/${var.k8s_service_account}"
 }
@@ -17,10 +21,24 @@ resource "google_project_iam_member" "workload_roles" {
   member  = "serviceAccount:${google_service_account.workload.email}"
 }
 
-# The WIF binding: allows the specific K8s SA in the specific namespace
-# to impersonate the GCP SA. Scoped tightly — not the whole cluster.
+# K8s SA binding: allows a specific K8s ServiceAccount in a specific namespace
+# to impersonate the GCP SA. Used for in-cluster workloads.
+# Only created when github_repo is not set.
 resource "google_service_account_iam_member" "workload_identity_binding" {
+  count = var.github_repo == "" ? 1 : 0
+
   service_account_id = google_service_account.workload.name
   role               = "roles/iam.workloadIdentityUser"
   member             = "serviceAccount:${var.project_id}.svc.id.goog[${var.k8s_namespace}/${var.k8s_service_account}]"
+}
+
+# GitHub Actions binding: allows any job in the specified GitHub repo
+# to impersonate the GCP SA via WIF. Used for CI workflows.
+# Only created when github_repo is set.
+resource "google_service_account_iam_member" "github_actions_binding" {
+  count = var.github_repo != "" ? 1 : 0
+
+  service_account_id = google_service_account.workload.name
+  role               = "roles/iam.workloadIdentityUser"
+  member             = "principalSet://iam.googleapis.com/${var.workload_identity_pool_id}/attribute.repository/${var.github_repo}"
 }

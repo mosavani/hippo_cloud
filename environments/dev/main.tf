@@ -85,8 +85,15 @@ module "gke" {
 
 # -----------------------------------------------------------------------
 # Workload Identity: driven entirely by wif.yml.
-# To add a new workload, add an entry to wif.yml — no Terraform changes.
+# To add a new in-cluster workload, add an entry under wif.yml `workloads`.
+# To add a GitHub Actions CI binding, add an entry under wif.yml `github_ci`.
+# No Terraform changes needed in either case.
 # -----------------------------------------------------------------------
+
+locals {
+  wif_pool_id = "projects/68730226170/locations/global/workloadIdentityPools/github-pool"
+}
+
 module "workload_identity" {
   source   = "../../modules/workload-identity"
   for_each = { for w in local.wif.workloads : w.name => w }
@@ -100,4 +107,21 @@ module "workload_identity" {
   gcp_roles           = each.value.gcp_roles
 
   depends_on = [module.gke]
+}
+
+module "github_ci_wif" {
+  source   = "../../modules/workload-identity"
+  for_each = { for g in local.wif.github_ci : g.name => g }
+
+  project_id                = local.project_id
+  environment               = local.environment
+  cluster_name              = local.cluster_name
+  workload_name             = each.value.name
+  github_repo               = each.value.github_repo
+  workload_identity_pool_id = local.wif_pool_id
+  gcp_roles                 = each.value.gcp_roles
+
+  # github_ci entries don't use K8s SA fields — provide empty defaults
+  k8s_namespace       = ""
+  k8s_service_account = ""
 }
