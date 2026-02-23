@@ -1,7 +1,8 @@
 # GCP service account for the workload.
-# account_id must be 6-30 chars; truncate to stay within the limit.
+# account_id must be 6-30 chars and cannot start or end with a hyphen.
+# Truncate to 30 chars then strip any trailing hyphens.
 locals {
-  account_id = substr("${var.cluster_name}-${var.workload_name}", 0, 30)
+  account_id = trimsuffix(substr("${var.cluster_name}-${var.workload_name}", 0, 30), "-")
 }
 
 resource "google_service_account" "workload" {

@@ -24,3 +24,8 @@ github_ci:
     github_repo: mosavani/hippo_k8s-service
     gcp_roles:
       - roles/artifactregistry.writer
+
+  - name: hippo-image-publisher
+    github_repo: mosavani/hippo_k8s-service
+    gcp_roles:
+      - roles/artifactregistry.writer
