@@ -42,6 +42,13 @@ output "wi_k8s_annotations" {
   value       = { for name, mod in module.workload_identity : name => mod.k8s_annotation }
 }
 
+# GitHub Actions WIF SA emails — set these as GCP_SERVICE_ACCOUNT secrets
+# in the corresponding GitHub repos.
+output "github_ci_service_accounts" {
+  description = "GCP SA emails for GitHub Actions WIF bindings, keyed by name from wif.yml github_ci"
+  value       = { for name, mod in module.github_ci_wif : name => mod.gcp_service_account_email }
+}
+
 # Convenience: kubeconfig instructions
 output "kubeconfig_command" {
   description = "Command to configure kubectl for this cluster"
