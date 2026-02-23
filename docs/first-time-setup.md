@@ -143,7 +143,7 @@ Run the printed command, for example:
 ```bash
 gcloud container clusters get-credentials hippo-dev-cluster \
   --region us-central1 \
-  --project hippo-sre-demo
+  --project project-ec2467ed-84cd-4898-b5b
 ```
 
 Verify:
@@ -160,9 +160,9 @@ kubectl get nodes
 
 ```yaml
 workloads:
-  - name: api
+  - name: frontend-web
     k8s_namespace: default
-    k8s_service_account: api
+    k8s_service_account: frontend-web
     gcp_roles:
       - roles/storage.objectViewer
 ```
@@ -175,7 +175,7 @@ After apply, get the annotation value for each workload's Kubernetes ServiceAcco
 terraform -chdir=environments/dev output wi_k8s_annotations
 ```
 
-Apply that annotation to the workload's K8s ServiceAccount manifest:
+Apply that annotation to the workload's K8s ServiceAccount manifest as <your-serviceaccount-file>.yaml:
 
 ```yaml
 apiVersion: v1
@@ -187,6 +187,17 @@ metadata:
     iam.gke.io/gcp-service-account: <value from output above>
 ```
 
+```
+
+  kubectl apply -f <your-serviceaccount-file>.yaml
+
+  Verify the annotation is set:
+
+  kubectl describe serviceaccount frontend-web -n default
+
+  Any pod that uses serviceAccountName: frontend-web in its spec will then automatically get a token that impersonates the GCP SA, giving it roles/storage.objectViewer without any key files.
+
+````
 ---
 
 ## Local developer workflow
@@ -214,22 +225,3 @@ make docs         # regenerate MODULE.md for all modules
 | Node pool | `default-pool` | `e2-standard-4`, 1–3 spot nodes |
 | Node SA | `hippo-dev-cluster-nodes` | Least-privilege roles only |
 | Workload SA | `hippo-dev-cluster-api` | Bound to `default/api` K8s SA |
-
----
-
-## Troubleshooting
-
-**`Error: google: could not find default credentials`**
-Run `gcloud auth application-default login`.
-
-**`Error: Bucket not found`**
-Run `./scripts/bootstrap-state.sh dev` before `terraform init`.
-
-**`Error: API not enabled`**
-Run the `gcloud services enable` command in Step 2.
-
-**Node pool not ready after apply**
-GKE node pool provisioning can take a few minutes. Run `kubectl get nodes -w` to watch.
-
-**Plan shows unexpected destroy**
-Check that `values.yml` matches the deployed state. If a field like `cluster_name` was changed, Terraform will force a replacement.

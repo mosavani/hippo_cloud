@@ -19,9 +19,9 @@ locals {
 module "networking" {
   source = "../../modules/networking"
 
-  project_id   = local.project_id
-  region       = local.region
-  network_name = local.config.networking.network_name
+  project_id    = local.project_id
+  region        = local.region
+  network_name  = local.config.networking.network_name
   subnet_name   = local.config.networking.subnet_name
   subnet_cidr   = local.config.networking.subnet_cidr
   pods_cidr     = local.config.networking.pods_cidr
@@ -47,9 +47,8 @@ module "iam" {
 module "gke" {
   source = "../../modules/gke"
 
-  project_id   = local.project_id
-  region       = local.region
-  location     = local.config.cluster.location
+  project_id = local.project_id
+  location   = local.config.cluster.location
   environment  = local.environment
   cluster_name = local.cluster_name
   tags         = local.tags

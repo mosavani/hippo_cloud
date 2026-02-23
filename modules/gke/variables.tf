@@ -3,11 +3,6 @@ variable "project_id" {
   description = "GCP project ID where the GKE cluster will be created"
 }
 
-variable "region" {
-  type        = string
-  description = "GCP region for the cluster"
-}
-
 variable "location" {
   type        = string
   description = "GKE cluster location. A zone (e.g. us-central1-a) creates a zonal cluster; a region (e.g. us-central1) creates a regional (HA) cluster."
