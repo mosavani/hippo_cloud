@@ -24,9 +24,9 @@ resource "google_project_iam_member" "workload_roles" {
 
 # K8s SA binding: allows a specific K8s ServiceAccount in a specific namespace
 # to impersonate the GCP SA. Used for in-cluster workloads.
-# Only created when github_repo is not set.
+# Only created when neither github_repo nor github_org is set.
 resource "google_service_account_iam_member" "workload_identity_binding" {
-  count = var.github_repo == "" ? 1 : 0
+  count = var.github_repo == "" && var.github_org == "" ? 1 : 0
 
   service_account_id = google_service_account.workload.name
   role               = "roles/iam.workloadIdentityUser"
