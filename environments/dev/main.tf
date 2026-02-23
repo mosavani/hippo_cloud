@@ -48,7 +48,7 @@ module "gke" {
   source = "../../modules/gke"
 
   project_id   = local.project_id
-  region       = local.region
+  location     = local.config.cluster.location
   environment  = local.environment
   cluster_name = local.cluster_name
   tags         = local.tags

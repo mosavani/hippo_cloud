@@ -13,7 +13,7 @@ locals {
 resource "google_container_cluster" "primary" {
   name     = var.cluster_name
   project  = var.project_id
-  location = var.region
+  location = var.location
 
   # We cannot create a cluster with no node pool defined, but we want to only use
   # separately managed node pools. So we create the smallest possible default
@@ -105,7 +105,7 @@ resource "google_container_node_pool" "pools" {
 
   name     = each.key
   project  = var.project_id
-  location = var.region
+  location = var.location
   cluster  = google_container_cluster.primary.name
 
   autoscaling {

@@ -14,8 +14,8 @@ locals {
     "roles/monitoring.metricWriter",
     "roles/monitoring.viewer",
     "roles/stackdriver.resourceMetadata.writer",
-    "roles/storage.objectViewer",
-    "roles/artifactregistry.reader",
+    "roles/storage.objectViewer",    # Pull container images from GCR/AR
+    "roles/artifactregistry.reader", # Pull from Artifact Registry
   ]
 }
 

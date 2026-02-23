@@ -9,8 +9,8 @@
 #   gcp_roles           - GCP IAM roles to grant the workload SA
 # -----------------------------------------------------------------------
 workloads:
-  - name: api
+  - name: frontend-web
     k8s_namespace: default
-    k8s_service_account: api
+    k8s_service_account: frontend-web
     gcp_roles:
       - roles/storage.objectViewer

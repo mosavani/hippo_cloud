@@ -4,6 +4,15 @@ Standard GKE cluster provisioned with Terraform — reusable modules, YAML-drive
 
 ---
 
+## Documentation
+
+| Guide | Description |
+|-------|-------------|
+| [docs/first-time-setup.md](docs/first-time-setup.md) | Clone → running GKE cluster from scratch |
+| [docs/ci-setup.md](docs/ci-setup.md) | GitHub Actions + Workload Identity Federation CI setup |
+
+---
+
 ## Repository layout
 
 ```
@@ -149,13 +158,17 @@ gcloud iam workload-identity-pools create "github-pool" \
   --display-name="GitHub Actions Pool"
 
 # 2. Create a provider for GitHub
+# REPO must match your exact GitHub "org/repo" (case-sensitive)
+REPO="YOUR_ORG/hippo_cloud"
+
 gcloud iam workload-identity-pools providers create-oidc "github-provider" \
   --project="YOUR_PROJECT" \
   --location="global" \
   --workload-identity-pool="github-pool" \
   --display-name="GitHub provider" \
   --attribute-mapping="google.subject=assertion.sub,attribute.repository=assertion.repository" \
-  --issuer-uri="https://token.actions.githubusercontent.com"
+  --issuer-uri="https://token.actions.githubusercontent.com" \
+  --attribute-condition="assertion.repository=='${REPO}'"
 
 # 3. Allow the GitHub repo to impersonate the CI SA
 gcloud iam service-accounts add-iam-policy-binding "ci-sa@YOUR_PROJECT.iam.gserviceaccount.com" \

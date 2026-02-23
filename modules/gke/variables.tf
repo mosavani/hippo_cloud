@@ -3,9 +3,9 @@ variable "project_id" {
   description = "GCP project ID where the GKE cluster will be created"
 }
 
-variable "region" {
+variable "location" {
   type        = string
-  description = "GCP region for the cluster"
+  description = "GKE cluster location. A zone (e.g. us-central1-a) creates a zonal cluster; a region (e.g. us-central1) creates a regional (HA) cluster."
 }
 
 variable "cluster_name" {
@@ -133,13 +133,13 @@ variable "maintenance_start_time" {
 variable "maintenance_end_time" {
   type        = string
   description = "End time for the maintenance window (RFC3339 format)"
-  default     = "2024-01-01T06:00:00Z"
+  default     = "2024-01-01T08:00:00Z"
 }
 
 variable "maintenance_recurrence" {
   type        = string
   description = "RFC 5545 RRULE for maintenance windows"
-  default     = "FREQ=WEEKLY;BYDAY=SA,SU"
+  default     = "FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR,SA,SU"
 }
 
 variable "logging_service" {
