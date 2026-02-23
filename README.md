@@ -175,17 +175,14 @@ gcloud iam workload-identity-pools create "github-pool" \
   --display-name="GitHub Actions Pool"
 
 # 2. Create a provider for GitHub
-# REPO must match your exact GitHub "org/repo" (case-sensitive)
-REPO="YOUR_ORG/hippo_cloud"
-
 gcloud iam workload-identity-pools providers create-oidc "github-provider" \
   --project="YOUR_PROJECT" \
   --location="global" \
   --workload-identity-pool="github-pool" \
   --display-name="GitHub provider" \
-  --attribute-mapping="google.subject=assertion.sub,attribute.repository=assertion.repository" \
+  --attribute-mapping="google.subject=assertion.sub,attribute.repository=assertion.repository,attribute.repository_owner=assertion.repository_owner" \
   --issuer-uri="https://token.actions.githubusercontent.com" \
-  --attribute-condition="assertion.repository=='${REPO}'"
+  --attribute-condition="assertion.repository_owner=='YOUR_ORG'"
 
 # 3. Allow the GitHub repo to impersonate the CI SA
 gcloud iam service-accounts add-iam-policy-binding "ci-sa@YOUR_PROJECT.iam.gserviceaccount.com" \

@@ -77,11 +77,11 @@ gcloud iam workload-identity-pools providers create-oidc "github-provider" \
   --workload-identity-pool="github-pool" \
   --display-name="GitHub provider" \
   --issuer-uri="https://token.actions.githubusercontent.com" \
-  --attribute-mapping="google.subject=assertion.sub,attribute.repository=assertion.repository" \
-  --attribute-condition="assertion.repository=='mosavani/hippo_cloud'"
+  --attribute-mapping="google.subject=assertion.sub,attribute.repository=assertion.repository,attribute.repository_owner=assertion.repository_owner" \
+  --attribute-condition="assertion.repository_owner=='mosavani'"
 ```
 
-The `--attribute-condition` locks this provider to the `mosavani/hippo_cloud` repo only. No other GitHub repo can use this pool.
+The `--attribute-condition` locks this provider to any repo under the `mosavani` org. To add a new repo that needs GCP access, no provider changes are needed — just bind its service account (Step 4) and set the secrets in that repo.
 
 ---
 
