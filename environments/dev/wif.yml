@@ -22,6 +22,12 @@ workloads:
     gcp_roles:
       - roles/storage.objectViewer
 
+  - name: argocd-repo-server
+    k8s_namespace: argocd
+    k8s_service_account: argocd-repo-server
+    gcp_roles:
+      - roles/artifactregistry.reader
+
 github_ci:
   - name: hippo-helm-publisher
     github_repo: mosavani/hippo_k8s-service
