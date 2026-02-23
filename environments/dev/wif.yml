@@ -7,10 +7,13 @@
 #   k8s_service_account - Kubernetes ServiceAccount name
 #   gcp_roles           - GCP IAM roles to grant the workload SA
 #
-# github_ci: GitHub Actions repo → GCP SA bindings (no K8s SA involved)
+# github_ci: GitHub Actions → GCP SA bindings (no K8s SA involved)
 #   name                - short name, used to name the GCP SA
-#   github_repo         - GitHub repo in 'owner/repo' format
+#   github_repo         - GitHub repo in 'owner/repo' format (per-repo binding)
+#   github_org          - GitHub org/user login (per-org binding — all repos in org)
 #   gcp_roles           - GCP IAM roles to grant the SA
+# Use github_org when all service repos share the same SA and registry.
+# Use github_repo for tighter scoping when repos need different SAs/roles.
 # -----------------------------------------------------------------------
 workloads:
   - name: frontend-web
@@ -26,6 +29,6 @@ github_ci:
       - roles/artifactregistry.writer
 
   - name: hippo-image-publisher
-    github_repo: mosavani/hippo_k8s-service
+    github_org: mosavani
     gcp_roles:
       - roles/artifactregistry.writer

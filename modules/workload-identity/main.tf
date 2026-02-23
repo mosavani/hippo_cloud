@@ -33,13 +33,22 @@ resource "google_service_account_iam_member" "workload_identity_binding" {
   member             = "serviceAccount:${var.project_id}.svc.id.goog[${var.k8s_namespace}/${var.k8s_service_account}]"
 }
 
-# GitHub Actions binding: allows any job in the specified GitHub repo
-# to impersonate the GCP SA via WIF. Used for CI workflows.
-# Only created when github_repo is set.
-resource "google_service_account_iam_member" "github_actions_binding" {
+# GitHub Actions binding — per-repo: allows any job in the specified repo
+# to impersonate the GCP SA via WIF.
+resource "google_service_account_iam_member" "github_actions_binding_repo" {
   count = var.github_repo != "" ? 1 : 0
 
   service_account_id = google_service_account.workload.name
   role               = "roles/iam.workloadIdentityUser"
   member             = "principalSet://iam.googleapis.com/${var.workload_identity_pool_id}/attribute.repository/${var.github_repo}"
+}
+
+# GitHub Actions binding — per-org: allows any job in ANY repo under the org
+# to impersonate the GCP SA via WIF.
+resource "google_service_account_iam_member" "github_actions_binding_org" {
+  count = var.github_org != "" ? 1 : 0
+
+  service_account_id = google_service_account.workload.name
+  role               = "roles/iam.workloadIdentityUser"
+  member             = "principalSet://iam.googleapis.com/${var.workload_identity_pool_id}/attribute.repository_owner/${var.github_org}"
 }
