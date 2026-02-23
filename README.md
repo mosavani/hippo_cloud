@@ -189,13 +189,50 @@ projects/PROJECT_NUMBER/locations/global/workloadIdentityPools/github-pool/provi
 ```
 PR opened
   ├── fmt check    (fails fast if unformatted)
-  ├── tflint       (modules + environments)
-  ├── validate     (dev — no cloud credentials needed)
-  └── plan         (dev — output posted as PR comment)
+  ├── tflint       (modules + environments, pinned v0.50.3)
+  ├── validate     (dev — no cloud credentials, -backend=false)
+  └── plan         (dev — GCP auth via WIF, posts/updates PR comment)
+        ├── ✅ No changes
+        ├── ⚠️ Changes pending
+        └── ❌ Error (job fails, PR blocked)
 
 Merge to main
-  └── apply        (dev, auto-approve)
+  └── apply        (dev, auto-approve, blocked by fmt+lint+validate)
 ```
+
+Plan output is posted as a **collapsible comment** on the PR. On each
+new push the same comment is updated — no spam.
+
+### Enabling PR blocking (required)
+
+After pushing the repo to GitHub, configure required status checks:
+
+```
+GitHub → Settings → Branches → Add rule
+  Branch name pattern: main
+  ✅ Require status checks to pass before merging
+     Add each of:
+       - Format check
+       - tflint
+       - Validate (dev)
+       - Plan (dev)
+  ✅ Require branches to be up to date before merging
+```
+
+With these set, a PR **cannot be merged** unless all four jobs are green.
+
+### CI dependencies
+
+| Job | GCP credentials | yq |
+|-----|-----------------|----|
+| Format check | No | No |
+| tflint | No | No |
+| Validate (dev) | No | No |
+| Plan (dev) | Yes (WIF) | Yes (installed in job) |
+| Apply (dev) | Yes (WIF) | Yes (installed in job) |
+
+`yq` is not pre-installed on `ubuntu-latest`. The workflow installs a
+pinned binary (`v4.43.1`) at runtime — no manual setup needed.
 
 ---
 
