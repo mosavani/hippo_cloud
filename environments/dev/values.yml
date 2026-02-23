@@ -36,7 +36,7 @@ cluster:
       disk_size_gb: 20
       disk_type: pd-standard
       image_type: COS_CONTAINERD
-      spot: true                       # Use spot instances in dev to save cost
+      spot: true                       # Use spot instances in dev
       preemptible: false
       labels:
         pool: default
