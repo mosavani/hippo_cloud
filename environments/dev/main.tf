@@ -47,8 +47,8 @@ module "iam" {
 module "gke" {
   source = "../../modules/gke"
 
-  project_id = local.project_id
-  location   = local.config.cluster.location
+  project_id   = local.project_id
+  location     = local.config.cluster.location
   environment  = local.environment
   cluster_name = local.cluster_name
   tags         = local.tags
