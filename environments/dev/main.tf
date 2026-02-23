@@ -117,7 +117,8 @@ module "github_ci_wif" {
   environment               = local.environment
   cluster_name              = local.cluster_name
   workload_name             = each.value.name
-  github_repo               = each.value.github_repo
+  github_repo               = try(each.value.github_repo, "")
+  github_org                = try(each.value.github_org, "")
   workload_identity_pool_id = local.wif_pool_id
   gcp_roles                 = each.value.gcp_roles
 

@@ -36,7 +36,13 @@ variable "gcp_roles" {
 
 variable "github_repo" {
   type        = string
-  description = "GitHub repo in 'owner/repo' format. When set, binds this GCP SA to a GitHub Actions workflow instead of a K8s ServiceAccount."
+  description = "GitHub repo in 'owner/repo' format. When set, binds this GCP SA to that specific repo. Mutually exclusive with github_org."
+  default     = ""
+}
+
+variable "github_org" {
+  type        = string
+  description = "GitHub org/user login (e.g. 'mosavani'). When set, binds this GCP SA to ALL repos in the org. Mutually exclusive with github_repo."
   default     = ""
 }
 
