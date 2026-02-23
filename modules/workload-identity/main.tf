@@ -1,8 +1,12 @@
 # GCP service account for the workload.
-# Named to make its scope obvious: <cluster>-<workload>
+# account_id must be 6-30 chars; truncate to stay within the limit.
+locals {
+  account_id = substr("${var.cluster_name}-${var.workload_name}", 0, 30)
+}
+
 resource "google_service_account" "workload" {
   project      = var.project_id
-  account_id   = "${var.cluster_name}-${var.workload_name}"
+  account_id   = local.account_id
   display_name = "${var.workload_name} (${var.environment})"
   description  = "Workload Identity SA for ${var.workload_name} running in ${var.k8s_namespace}/${var.k8s_service_account}"
 }
