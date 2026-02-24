@@ -110,10 +110,18 @@ module "workload_identity" {
 }
 
 # -----------------------------------------------------------------------
-# ArgoCD GAR: dedicated SA + key + Secret Manager.
-# Inlined here (not in wif.yml) because the workload-identity module always
-# creates a WIF binding, which this SA does not need — the key is the credential.
-# ESO reads the key from Secret Manager and syncs it into argocd-gar-repo-creds.
+# ArgoCD GAR: dedicated SA + Secret Manager secret.
+#
+# The SA key is created MANUALLY (org policy blocks Terraform key creation):
+#   gcloud iam service-accounts keys create /tmp/argocd-gar-key.json \
+#     --iam-account=hippo-dev-cluster-argocd-gar@project-ec2467ed-84cd-4898-b5b.iam.gserviceaccount.com
+#   gcloud secrets versions add hippo-dev-cluster-argocd-gar-key \
+#     --data-file=/tmp/argocd-gar-key.json \
+#     --project=project-ec2467ed-84cd-4898-b5b
+#   shred -u /tmp/argocd-gar-key.json
+#
+# ESO reads the key from Secret Manager and syncs it into the argocd namespace.
+# ArgoCD uses username=_json_key, password=<full JSON key> to auth to GAR OCI.
 # -----------------------------------------------------------------------
 resource "google_service_account" "argocd_gar" {
   project      = local.project_id
@@ -126,10 +134,6 @@ resource "google_project_iam_member" "argocd_gar_reader" {
   project = local.project_id
   role    = "roles/artifactregistry.reader"
   member  = "serviceAccount:${google_service_account.argocd_gar.email}"
-}
-
-resource "google_service_account_key" "argocd_gar" {
-  service_account_id = google_service_account.argocd_gar.name
 }
 
 resource "google_secret_manager_secret" "argocd_gar_key" {
@@ -147,13 +151,7 @@ resource "google_secret_manager_secret" "argocd_gar_key" {
   }
 }
 
-resource "google_secret_manager_secret_version" "argocd_gar_key" {
-  secret      = google_secret_manager_secret.argocd_gar_key.id
-  secret_data = base64decode(google_service_account_key.argocd_gar.private_key)
-}
-
 # Grant ESO's GCP SA access to read this specific secret.
-# ESO uses this to sync the key JSON into the argocd namespace.
 resource "google_secret_manager_secret_iam_member" "eso_argocd_gar_accessor" {
   project   = local.project_id
   secret_id = google_secret_manager_secret.argocd_gar_key.secret_id

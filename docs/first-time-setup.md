@@ -213,6 +213,36 @@ make docs         # regenerate MODULE.md for all modules
 
 ---
 
+## ArgoCD GAR key (one-time manual step)
+
+The org policy `constraints/iam.disableServiceAccountKeyCreation` blocks Terraform from
+creating SA keys. After `make apply-dev`, create and upload the key manually:
+
+```bash
+# 1. Create the key locally
+gcloud iam service-accounts keys create /tmp/argocd-gar-key.json \
+  --iam-account=hippo-dev-cluster-argocd-gar@project-ec2467ed-84cd-4898-b5b.iam.gserviceaccount.com
+
+# 2. Upload it to Secret Manager (Terraform creates the secret, you populate it)
+gcloud secrets versions add hippo-dev-cluster-argocd-gar-key \
+  --data-file=/tmp/argocd-gar-key.json \
+  --project=project-ec2467ed-84cd-4898-b5b
+
+# 3. Shred the local copy immediately
+shred -u /tmp/argocd-gar-key.json
+```
+
+ESO then syncs the secret into the `argocd` namespace. ArgoCD uses it as a repository
+credential with:
+- **username**: `_json_key`
+- **password**: the full JSON content of the key file
+
+> This only needs to be repeated if the key is rotated. Keys do not expire automatically
+> but should be rotated periodically. To rotate: delete the old key version in Secret Manager,
+> create a new key with the same commands above, and add a new secret version.
+
+---
+
 ## What gets provisioned
 
 | Resource | Name | Notes |
