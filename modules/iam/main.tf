@@ -26,3 +26,11 @@ resource "google_project_iam_member" "gke_node_roles" {
   role    = each.value
   member  = "serviceAccount:${google_service_account.gke_nodes.email}"
 }
+
+# Allow the Terraform CI SA to attach the node SA to GKE node pools.
+# GCP requires iam.serviceAccountUser on the SA being attached.
+resource "google_service_account_iam_member" "terraform_node_sa_user" {
+  service_account_id = google_service_account.gke_nodes.name
+  role               = "roles/iam.serviceAccountUser"
+  member             = "serviceAccount:${var.terraform_sa}"
+}
