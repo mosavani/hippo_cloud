@@ -117,7 +117,7 @@ module "workload_identity" {
 # -----------------------------------------------------------------------
 resource "google_service_account" "argocd_gar" {
   project      = local.project_id
-  account_id   = "${trimsuffix(substr("${local.cluster_name}-argocd-gar", 0, 30), "-")}"
+  account_id   = trimsuffix(substr(join("-", [local.cluster_name, "argocd-gar"]), 0, 30), "-")
   display_name = "ArgoCD GAR reader (${local.environment})"
   description  = "ArgoCD repo-server: pulls Helm charts from GAR via _json_key Basic Auth"
 }
