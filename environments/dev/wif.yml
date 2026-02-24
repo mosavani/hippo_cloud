@@ -37,7 +37,8 @@ workloads:
   - name: eso
     k8s_namespace: external-secrets
     k8s_service_account: external-secrets
-    gcp_roles: []  # accessor granted per-secret in main.tf
+    gcp_roles:
+      - roles/artifactregistry.reader  # GCRAccessToken generator: get OAuth2 token for GAR OCI pulls
 
 github_ci:
   - name: hippo-helm-publisher
