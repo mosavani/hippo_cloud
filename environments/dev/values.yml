@@ -38,6 +38,10 @@ cluster:
       image_type: COS_CONTAINERD
       spot: true                       # Use spot instances in dev
       preemptible: false
+      # Dedicated node SA with least-privilege roles (created by module.iam).
+      # Avoids using the default Compute SA which has overly broad access.
+      # Requires node pool recreation if changed after initial cluster creation.
+      service_account: "hippo-dev-cluster-nodes@project-ec2467ed-84cd-4898-b5b.iam.gserviceaccount.com"
       labels:
         pool: default
       tags:
