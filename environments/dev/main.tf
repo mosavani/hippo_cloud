@@ -110,16 +110,16 @@ module "workload_identity" {
 }
 
 # -----------------------------------------------------------------------
-# ArgoCD GAR: dedicated SA + key + Secret Manager.
-# Inlined here (not in wif.yml) because the workload-identity module always
-# creates a WIF binding, which this SA does not need — the key is the credential.
-# ESO reads the key from Secret Manager and syncs it into argocd-gar-repo-creds.
+# ArgoCD GAR: dedicated SA with Workload Identity binding.
+# ArgoCD repo-server runs on the cluster and authenticates to GAR via WIF —
+# no SA key required (org policy blocks key creation).
+# The SA is bound to the argocd/argocd-repo-server K8s ServiceAccount.
 # -----------------------------------------------------------------------
 resource "google_service_account" "argocd_gar" {
   project      = local.project_id
   account_id   = trimsuffix(substr(join("-", [local.cluster_name, "argocd-gar"]), 0, 30), "-")
   display_name = "ArgoCD GAR reader (${local.environment})"
-  description  = "ArgoCD repo-server: pulls Helm charts from GAR via _json_key Basic Auth"
+  description  = "ArgoCD repo-server: pulls Helm charts from GAR via Workload Identity"
 }
 
 resource "google_project_iam_member" "argocd_gar_reader" {
@@ -128,37 +128,11 @@ resource "google_project_iam_member" "argocd_gar_reader" {
   member  = "serviceAccount:${google_service_account.argocd_gar.email}"
 }
 
-resource "google_service_account_key" "argocd_gar" {
+# Bind the GCP SA to the argocd-repo-server K8s ServiceAccount via WIF.
+resource "google_service_account_iam_member" "argocd_gar_wif" {
   service_account_id = google_service_account.argocd_gar.name
-}
-
-resource "google_secret_manager_secret" "argocd_gar_key" {
-  project   = local.project_id
-  secret_id = "${local.cluster_name}-argocd-gar-key"
-
-  replication {
-    auto {}
-  }
-
-  labels = {
-    environment = local.environment
-    managed-by  = "terraform"
-    component   = "argocd"
-  }
-}
-
-resource "google_secret_manager_secret_version" "argocd_gar_key" {
-  secret      = google_secret_manager_secret.argocd_gar_key.id
-  secret_data = base64decode(google_service_account_key.argocd_gar.private_key)
-}
-
-# Grant ESO's GCP SA access to read this specific secret.
-# ESO uses this to sync the key JSON into the argocd namespace.
-resource "google_secret_manager_secret_iam_member" "eso_argocd_gar_accessor" {
-  project   = local.project_id
-  secret_id = google_secret_manager_secret.argocd_gar_key.secret_id
-  role      = "roles/secretmanager.secretAccessor"
-  member    = "serviceAccount:${module.workload_identity["eso"].gcp_service_account_email}"
+  role               = "roles/iam.workloadIdentityUser"
+  member             = "serviceAccount:${local.project_id}.svc.id.goog[argocd/argocd-repo-server]"
 }
 
 module "github_ci_wif" {
