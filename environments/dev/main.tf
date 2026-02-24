@@ -109,6 +109,58 @@ module "workload_identity" {
   depends_on = [module.gke]
 }
 
+# -----------------------------------------------------------------------
+# ArgoCD GAR: dedicated SA + key + Secret Manager.
+# Inlined here (not in wif.yml) because the workload-identity module always
+# creates a WIF binding, which this SA does not need — the key is the credential.
+# ESO reads the key from Secret Manager and syncs it into argocd-gar-repo-creds.
+# -----------------------------------------------------------------------
+resource "google_service_account" "argocd_gar" {
+  project      = local.project_id
+  account_id   = trimsuffix(substr(join("-", [local.cluster_name, "argocd-gar"]), 0, 30), "-")
+  display_name = "ArgoCD GAR reader (${local.environment})"
+  description  = "ArgoCD repo-server: pulls Helm charts from GAR via _json_key Basic Auth"
+}
+
+resource "google_project_iam_member" "argocd_gar_reader" {
+  project = local.project_id
+  role    = "roles/artifactregistry.reader"
+  member  = "serviceAccount:${google_service_account.argocd_gar.email}"
+}
+
+resource "google_service_account_key" "argocd_gar" {
+  service_account_id = google_service_account.argocd_gar.name
+}
+
+resource "google_secret_manager_secret" "argocd_gar_key" {
+  project   = local.project_id
+  secret_id = "${local.cluster_name}-argocd-gar-key"
+
+  replication {
+    auto {}
+  }
+
+  labels = {
+    environment = local.environment
+    managed-by  = "terraform"
+    component   = "argocd"
+  }
+}
+
+resource "google_secret_manager_secret_version" "argocd_gar_key" {
+  secret      = google_secret_manager_secret.argocd_gar_key.id
+  secret_data = base64decode(google_service_account_key.argocd_gar.private_key)
+}
+
+# Grant ESO's GCP SA access to read this specific secret.
+# ESO uses this to sync the key JSON into the argocd namespace.
+resource "google_secret_manager_secret_iam_member" "eso_argocd_gar_accessor" {
+  project   = local.project_id
+  secret_id = google_secret_manager_secret.argocd_gar_key.secret_id
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${module.workload_identity["eso"].gcp_service_account_email}"
+}
+
 module "github_ci_wif" {
   source   = "../../modules/workload-identity"
   for_each = { for g in local.wif.github_ci : g.name => g }

@@ -22,17 +22,13 @@ workloads:
     gcp_roles:
       - roles/storage.objectViewer
 
-  - name: argocd-repo-server
-    k8s_namespace: argocd
-    k8s_service_account: argocd-repo-server
-    gcp_roles:
-      - roles/artifactregistry.reader
-
-  - name: image-updater
-    k8s_namespace: argocd
-    k8s_service_account: argocd-image-updater
-    gcp_roles:
-      - roles/artifactregistry.reader
+  # External Secrets Operator — reads the ArgoCD GAR SA key from Secret Manager.
+  # The secretmanager.secretAccessor grant on the specific secret is declared
+  # inline in environments/dev/main.tf (not a project-level role).
+  - name: eso
+    k8s_namespace: external-secrets
+    k8s_service_account: external-secrets
+    gcp_roles: []  # accessor granted per-secret in main.tf
 
 github_ci:
   - name: hippo-helm-publisher
