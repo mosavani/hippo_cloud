@@ -46,6 +46,7 @@ for role in \
   roles/iam.serviceAccountAdmin \
   roles/iam.serviceAccountKeyAdmin \
   roles/resourcemanager.projectIamAdmin \
+  roles/secretmanager.admin \
   roles/storage.admin; do
   gcloud projects add-iam-policy-binding project-ec2467ed-84cd-4898-b5b \
     --member="serviceAccount:ci-terraform@project-ec2467ed-84cd-4898-b5b.iam.gserviceaccount.com" \
