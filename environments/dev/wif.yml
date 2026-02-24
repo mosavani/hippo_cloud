@@ -22,6 +22,15 @@ workloads:
     gcp_roles:
       - roles/storage.objectViewer
 
+  # argocd-repo-server — pulls OCI Helm charts from GAR via docker-credential-gcr.
+  # The WIF binding lets the pod exchange its metadata server token for a
+  # short-lived OAuth2 token that ArgoCD's go-containerregistry client accepts.
+  - name: argocd-repo-server
+    k8s_namespace: argocd
+    k8s_service_account: argocd-repo-server
+    gcp_roles:
+      - roles/artifactregistry.reader
+
   # External Secrets Operator — reads the ArgoCD GAR SA key from Secret Manager.
   # The secretmanager.secretAccessor grant on the specific secret is declared
   # inline in environments/dev/main.tf (not a project-level role).
