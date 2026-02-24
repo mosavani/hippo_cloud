@@ -28,6 +28,12 @@ workloads:
     gcp_roles:
       - roles/artifactregistry.reader
 
+  - name: image-updater
+    k8s_namespace: argocd
+    k8s_service_account: argocd-image-updater
+    gcp_roles:
+      - roles/artifactregistry.reader
+
 github_ci:
   - name: hippo-helm-publisher
     github_repo: mosavani/hippo_k8s-service
