@@ -37,6 +37,7 @@ module "iam" {
   project_id   = local.project_id
   environment  = local.environment
   cluster_name = local.cluster_name
+  terraform_sa = "ci-terraform@project-ec2467ed-84cd-4898-b5b.iam.gserviceaccount.com"
 }
 
 # -----------------------------------------------------------------------
