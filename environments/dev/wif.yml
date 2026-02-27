@@ -40,6 +40,15 @@ workloads:
     gcp_roles:
       - roles/artifactregistry.reader  # GCRAccessToken generator: get OAuth2 token for GAR OCI pulls
 
+  # GMP frontend — Prometheus-compatible query proxy backed by Cloud Monitoring.
+  # Deployed to gmp-public so Argo Rollouts AnalysisTemplates can query metrics
+  # during canary rollouts via http://frontend.gmp-public.svc.cluster.local:9090
+  - name: gmp-frontend
+    k8s_namespace: gmp-public
+    k8s_service_account: gmp-frontend
+    gcp_roles:
+      - roles/monitoring.viewer
+
 github_ci:
   - name: hippo-helm-publisher
     github_repo: mosavani/hippo_k8s-service
